@@ -10,26 +10,15 @@
  * www: http://wns.comnets.rwth-aachen.de                                     *
  ******************************************************************************/
 
-#include <WNS-CORE/WNS.hpp>
-#include <WNS-CORE/OutputPreparation.hpp>
-#include <WNS-CORE/SignalHandlers.hpp>
+#include <OPENWNS/WNS.hpp>
+#include <OPENWNS/SignalHandlers.hpp>
+#include <OPENWNS/bversion.hpp>
 
 #include <WNS/logger/Master.hpp>
 #include <WNS/Assure.hpp>
-#include <WNS/module/Base.hpp>
-#include <WNS/module/CurrentVersion.hpp>
-#include <WNS/node/Node.hpp>
-#include <WNS/node/Registry.hpp>
 #include <WNS/events/scheduler/Interface.hpp>
-#include <WNS/SmartPtrBase.hpp>
-#include <WNS/probe/utils.hpp>
 #include <WNS/TypeInfo.hpp>
 #include <WNS/simulator/Simulator.hpp>
-
-#include <WNS/rng/fibogen.hpp>
-#include <WNS/speetcl/event.hpp>
-#include <WNS/speetcl/pdu.hpp>
-#include <WNS/speetcl/db.hpp>
 
 #include <boost/program_options/value_semantic.hpp>
 
@@ -44,18 +33,12 @@ using namespace wns;
 WNS::WNS() :
         iniFileName("config.py"),
         pyConfig(),
-	lazyBinding(false),
-	absolute_path(false),
 	be_verbose(false),
 	testing(false),
 	testNames(),
-	mutex(),
-	prematureAbort(false),
 	options(),
 	arguments()
 {
-	pthread_mutex_init(&mutex, NULL);
-
 	options.add_options()
 
 		("help,?",
@@ -64,10 +47,6 @@ WNS::WNS() :
 		("config-file,f",
 		 boost::program_options::value<std::string>(&this->iniFileName)->default_value("config.py"),
 		 "load config from configuration file")
-
-		("lazy-linking,l",
-		 boost::program_options::bool_switch(&this->lazyBinding),
-		 "be lazy and link when needed (not at start-up)")
 
 		("attach-debugger-on-segfault,s",
 		 boost::program_options::value<std::string>(&WNS::gdb_name),
@@ -98,7 +77,7 @@ WNS::WNS() :
 		;
 
 
-	if (NULL == )
+	if (NULL == wns)
 	{
 		wns = this;
 	}
@@ -112,46 +91,13 @@ WNS::WNS() :
 WNS::~WNS()
 {
 	MESSAGE_SINGLE(NORMAL, log, "Deleting all nodes");
-	while(!registry.empty())
-	{
-		wns::node::Interface* doomed = registry.begin()->second;
-		MESSAGE_SINGLE(NORMAL, log, "Deleting: " << doomed->getName());
-		delete doomed;
-		registry.erase(registry.begin()->first);
-	}
 
 	MESSAGE_SINGLE(NORMAL, log, "Destroying all modules");
-	while(configuredModules.empty() == false)
-	{
-		wns::module::Base* mm = *(configuredModules.begin());
-		MESSAGE_SINGLE(NORMAL, log, "Destroying module " << wns::TypeInfo::create(*mm));
-		delete mm;
-		configuredModules.erase(configuredModules.begin());
-	}
-
-    // shutdown ProbeBusRegistry
-    if (probeBusRegistry != NULL)
-    {
-        delete probeBusRegistry;
-    }
-
-	wns->tearDownSPEETCL();
 
 	std::cout << "\n"
 		  << "Deleting EventScheduler" << std::endl;
 	std::cout.flush();
  	wns::simulator::getSingleton().shutdownInstance();
-
-#ifndef NDEBUG
-	std::cout << "\n";
-	std::cout << "PDUs available before Nodes deleted: " << pdusAvailableBeforeNodesDeletd << "\n";
-	std::cout << "PDUs available after Nodes deleted:  " << PDU::getExistingPDUs() << "\n";
-	std::cout << "Maximum number of PDUs available:    " << PDU::getMaxExistingPDUs() << "\n";
-#ifdef WNS_SMARTPTR_DEBUGGING
-	wns::SmartPtrBase::printAllExistingPointers();
-#endif // WNS_SMARTPTR_DEBUGGING
-#endif // NDEBUG
-
 
 	if (this->pyConfig.get<bool>("WNS.postProcessing()") == false)
 	{
@@ -161,21 +107,6 @@ WNS::~WNS()
 	std::cout << "Good bye. - ~WNS() finished" << std::endl;
 }
 
-
-
-void
-WNS::abort()
-{
-	prematureAbort = true;
-	wns::simulator::getEventScheduler()->queueCommand(SimControl::PrematureAbort(simctrl));
-}
-
-bool
-WNS::isPrematureAbort()
-{
-	return prematureAbort;
-}
-
 void WNS::init()
 {
 	wns::simulator::getSingleton().setInstance(new wns::simulator::Simulator(pyConfig));
@@ -183,99 +114,13 @@ void WNS::init()
 	signal(SIGABRT, wns::catch_abrt);
 	signal(SIGINT,  wns::catch_int);
 	signal(SIGUSR1, wns::catch_usr1);
-	signal(SIGUSR2, wns::catch_usr2);
-	signal(SIGXCPU, wns::catch_xcpu);
-
-	if(this->networkingEnabled())
-	{
-		MESSAGE_BEGIN(NORMAL, log, m, "Start networking");
-		MESSAGE_END();
-		this->startNetworking();
-
-		MESSAGE_BEGIN(NORMAL, log, m, "Binding network socket");
-		MESSAGE_END();
-
-		server->bind();
-
-		MESSAGE_BEGIN(NORMAL, log, m, "Registering with GUI");
-		MESSAGE_END();
-
-		server->registerRemote();
-
-		MESSAGE_BEGIN(NORMAL, log, m, "GUI found");
-		MESSAGE_END();
-	}
 
 	pyconfig::View wnsView = pyConfig.getView("WNS");
-	maxSimulationTime = pyConfig.get<double64>("WNS.maxSimTime");
-
-	{ // prepare probes output directory according to the configured strategy
-
-		pyconfig::View outputStrategyView = wnsView.getView("outputStrategy");
-
-		std::auto_ptr<OutputPreparationStrategy> outputPreparationStrategy(
-			OutputPreparationStrategyFactory::creator(
-				outputStrategyView.get<std::string>("__plugin__"))->create());
-
-		outputPreparationStrategy->prepare(wnsView.get<std::string>("outputDir"));
-	}
 
 	pyconfig::View masterLoggerView = wnsView.getView("masterLogger");
 	outputBT = masterLoggerView.get<bool>("backtrace.enabled");
 
 	log = logger::Logger(wnsView.get<wns::pyconfig::View>("logger"));
-	// No simctrl needed in case of testing
-	if (testing == false)
-	{
-		this->simctrl = new SimControl(this);
-	}
-	else
-	{
-		this->simctrl = NULL;
-	}
-
-	// Setup ProbeBus
-    pyconfig::View pbregConfig = wnsView.getView("probeBusRegistry");
-    probeBusRegistry = new wns::probe::bus::ProbeBusRegistry(pbregConfig);
-    wns::simulator::getRegistry()->insert("WNS.ProbeBusRegistry",
-                                          probeBusRegistry);
-
-    wns::probe::bus::addProbeBusses(wnsView.get("probeBusses"));
-}
-
-void WNS::initSPEETCL()
-{
-	pyconfig::View pyConDataBase = pyConfig.getView("WNS.PDataBase");
-	PDataBase* db = NULL;
-	db = new PDataBase(pyConDataBase.get<uint32>("numBackups"),
-			   pyConfig.get<String>("WNS.outputDir"),
-			   pyConDataBase.get<bool>("compress"),
-			   pyConDataBase.get<String>("zipCmd"),
-			   pyConDataBase.get<String>("unzipCmd"),
-			   pyConDataBase.get<String>("zipSuffix"),
-			   pyConDataBase.get<double64>("settlingTime"),
-			   pyConDataBase.get<double64>("PDBVersion"),
-			   pyConDataBase.get<String>("prefix"),
-			   pyConDataBase.get<bool>("storeInSQLiteDB"));
-
-	wns::simulator::getRegistry()->insert("WNS.DataBase", db);
- 	// Store PDataBase Pointer inside the PDataBase (!!scary!!)
- 	PDataBase::setInstance(db);
-
-	// read all probes which are globally registered
-	wns::probe::registerProbesFromDict(pyConfig.getView("WNS.globalProbesDict"), db);
-
-	if (maxSimulationTime > 0.0) {
-		simctrl->setMaxSimTime(maxSimulationTime, pyConfig.get<bool>("WNS.fastShutdown"));
-	}
-}
-
-void WNS::tearDownSPEETCL()
-{
-	wns::simulator::getRegistry()->erase("WNS.DataBase");
-	std::cout << "Deleting PDataBase" << std::endl;
-	std::cout.flush();
-	PDataBase::destroy();
 }
 
 void
@@ -315,17 +160,6 @@ WNS::readCommandLineParameter(int argc, char* argv[])
 	}
 
 
-	if (this->arguments.count("show-modules"))
-	{
-		std::cout << "The following Modules are available before dynamic loading:" << std::endl;
-		for(module::Factory::CreateMap::iterator i = module::Factory::getMap()->begin();
-		    i != module::Factory::getMap()->end();
-		    ++i)
-		{
-			std::cout << "\t"<< i->first << std::endl;
-		}
-	}
-
 	pyConfig.appendPath(getPythonPath());
 	pyConfig.appendPath(".");
 	pyConfig.load(iniFileName);
@@ -335,30 +169,10 @@ WNS::readCommandLineParameter(int argc, char* argv[])
 	{
 		pyConfig.patch(*it);
 	}
-
-	int32 nModules = pyConfig.len("WNS.modules");
-	for(int i=0; i<nModules; ++i)
-	{
-		moduleViews.push_back(pyConfig.getView("WNS.modules", i));
-	}
 }
 
 void WNS::shutdown()
 {
-	MESSAGE_SINGLE(NORMAL, log, "Calling onShutdown for all nodes");
-	for(wns::node::Registry::const_iterator itr = registry.begin();
-	    itr != registry.end();
-	    ++itr) {
-		itr->second->onShutdown();
-	}
-
-	MESSAGE_SINGLE(NORMAL, log, "Calling shutDown for all modules");
-	for(std::list<module::Base*>::iterator itr = configuredModules.begin();
-	    itr != configuredModules.end();
-	    ++itr)
-	{
-		(*itr)->shutDown();
-	}
 }
 
 
@@ -378,7 +192,7 @@ std::string WNS::getPythonPath()
 	return ss.str();
 }
 
-std::string WNS::prog_name = "wns-core";
+std::string WNS::prog_name = "openwns";
 std::string WNS::gdb_name = "gdb";
 bool WNS::attachGDB = false;
 WNS* WNS::wns = 0;

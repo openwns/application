@@ -10,8 +10,8 @@
  * www: http://wns.comnets.rwth-aachen.de                                     *
  ******************************************************************************/
 
-#include <WNS-CORE/WNS.hpp>
-#include <WNS-CORE/DetailedProgressListener.hpp>
+#include <OPENWNS/WNS.hpp>
+#include <OPENWNS/DetailedProgressListener.hpp>
 
 #include <WNS/logger/Master.hpp>
 #include <WNS/pyconfig/View.hpp>
@@ -137,31 +137,28 @@ int main(int argc, char* argv[])
 	// set_unexpected() handler previously set by SPEETCL
 	std::set_unexpected(unexpectedHandler);
 
-	// preserve abort status
-	bool prematureAbort = false;
 	// Finally run WNS
 	// Run in try-block to be able to catch all exceptions
 	try
 	{
 		wns->run();
-		prematureAbort = wns->isPrematureAbort();
 		delete wns;
 	}
 	// we catch everything in order to finally print the backtrace (if defined)
-	catch (const std::exception& e)
-	{
-		wns->outputBacktrace();
-		std::stringstream s;
-		s << "WNS: Caught standard library exception:\n\n"
-		  << e.what();
-		std::cerr << s.str() << std::endl << std::endl;
-		exit(1);
-	}
 	catch (const wns::Exception& e)
 	{
 		wns->outputBacktrace();
 		std::stringstream s;
 		s << "WNS: Caught wns::Exception:\n\n"
+		  << e.what();
+		std::cerr << s.str() << std::endl << std::endl;
+		exit(1);
+	}
+	catch (const std::exception& e)
+	{
+		wns->outputBacktrace();
+		std::stringstream s;
+		s << "WNS: Caught standard library exception:\n\n"
 		  << e.what();
 		std::cerr << s.str() << std::endl << std::endl;
 		exit(1);
@@ -173,10 +170,7 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	if (prematureAbort == true)
-		return 2;
-	else
-		return 0;
+	return 0;
 }
 
 /**

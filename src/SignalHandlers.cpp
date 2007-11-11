@@ -10,8 +10,8 @@
  * www: http://wns.comnets.rwth-aachen.de                                     *
  ******************************************************************************/
 
-#include <WNS-CORE/SignalHandlers.hpp>
-#include <WNS-CORE/WNS.hpp>
+#include <OPENWNS/SignalHandlers.hpp>
+#include <OPENWNS/WNS.hpp>
 
 #include <WNS/module/Base.hpp>
 
@@ -99,61 +99,3 @@ wns::catch_usr1(int signum)
 
     return;
 }
-
-
-void
-wns::catch_usr2(int signum)
-{
-    assert(signum == SIGUSR2);
-    if (abortCalled() == false)
-    {
-        std::cout << std::endl
-                  << "==================================================================" << std::endl
-                  << "WNS caught SIG USR2 (" << signum << ")," << std::endl
-                  << "it was aborted by SGE because resource limits (memory or CPU-time)" << std::endl
-                  << "were violated." << std::endl << std::endl
-                  << "The current simTime is: " << wns::simulator::getEventScheduler()->getTime()
-                  << " [s]."<< std::endl
-                  << "The simulator is now shut down, Final probes are being written." << std::endl
-                  << "==================================================================" << std::endl;
-
-
-        // Properly end the simulation now
-        if (WNS::wns != NULL)
-            WNS::wns->abort();
-    }
-    else
-        return;
-}
-
-
-void
-wns::catch_xcpu(int signum)
-{
-    assert(signum == SIGXCPU);
-
-    if (abortCalled() == false)
-    {
-        std::cout << std::endl
-                  << "==================================================================" << std::endl
-                  << "WNS caught SIG XCPU (" << signum << ")," << std::endl
-                  << "it was aborted by SGE because resource limits (memory or CPU-time)" << std::endl
-                  << "were violated." << std::endl << std::endl
-                  << "The current simTime is: " << wns::simulator::getEventScheduler()->getTime()
-                  << " [s]."<< std::endl
-                  << "The simulator is now shut down, Final probes are being written." << std::endl
-                  << "==================================================================" << std::endl;
-
-
-        // Properly end the simulation now
-        if (WNS::wns != NULL)
-        {
-            WNS::wns->abort();
-        }
-    }
-    else
-    {
-        return;
-    }
-}
-

@@ -10,7 +10,7 @@
  * www: http://wns.comnets.rwth-aachen.de                                     *
  ******************************************************************************/
 
-#include <WNS-CORE/DetailedProgressListener.hpp>
+#include <OPENWNS/DetailedProgressListener.hpp>
 
 #include <iostream>
 

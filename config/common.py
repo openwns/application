@@ -14,7 +14,10 @@ commonEnv = CNBSEnvironment(PROJNAME       = 'openWNS',
                                               'python2.4',
                                               'dl',
                                               'boost_program_options',
-                                              'boost_signals'],
+                                              'boost_signals',
+                                              'gsl',
+                                              'gslcblas'
+                                              ],
                             )
 
 Return('commonEnv')

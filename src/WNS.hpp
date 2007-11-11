@@ -57,6 +57,13 @@ namespace wns {
 		void init();
 
 		/**
+		 * @brief Run the simulation
+		 */
+		void run()
+		{
+		}
+
+		/**
 		 * @brief Shutdown all Module, Nodes, ...
 		 */
 		void shutdown();
@@ -87,26 +94,7 @@ namespace wns {
 		 */
 		void outputBacktrace();
 
-		/**
-		 * @brief triggers a premature abort of the simulation with
-		 * the regular cleanup, probe writing, etc. wns-core will
-		 * exit with status code 2
-		 */
-		void abort();
-
 		std::string getPythonPath();
-
-		/**
-		 * @brief return premature abort status
-		 *
-		 * This is queried to determine wns-core's exit status.
-		 *
-		 * 0: Execution OK: maxSimTime reached
-		 * 1: Error: Uncaught signal or exception
-		 * 2: Aborted: Aborted during regular execution, because SIGUSR2
-		 *    was received (e.g. sent by SGE upon resource limit violation)
-		 */
-		bool isPrematureAbort();
 
 		static std::string prog_name;
 
@@ -127,23 +115,11 @@ namespace wns {
 
 		pyconfig::Parser pyConfig;
 
-		bool lazyBinding;
-
-		bool absolute_path;
-
 		bool be_verbose;
 
 		bool testing;
 
 		std::vector<std::string> testNames;
-
-		pthread_mutex_t mutex;
-
-		/**
-		 * @brief flag preserving the info whether the simulation was
-		 * aborted prematurely
-		 */
-		bool prematureAbort;
 
 		boost::program_options::options_description options;
 		boost::program_options::variables_map arguments;

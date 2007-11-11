@@ -1,1 +1,5 @@
 config/private.py
+.sconsign.dblite
+build
+include
+config/bversion.hpp
