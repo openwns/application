@@ -13,11 +13,8 @@
 #ifndef WNS_WNS_HPP
 #define WNS_WNS_HPP
 
-#include <WNS-CORE/StatusReport.hpp>
-
 #include <WNS/pyconfig/Parser.hpp>
 #include <WNS/logger/Logger.hpp>
-#include <WNS/node/Registry.hpp>
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -28,7 +25,6 @@
 #include <string>
 
 namespace wns {
-	class SimControl;
 
 	/**
 	 * @brief Handles the startup of the modules and different threads if networking
@@ -38,12 +34,14 @@ namespace wns {
 	{
 	public:
 		/**
-		 * @brief Default Constructor */
+		 * @brief Default Constructor
+		 */
 		WNS();
 		/**
 		 * @brief Default Destructor
 		 */
-		virtual ~WNS();
+		virtual
+		~WNS();
 
 		/**
 		 * @brief Reads the command line parameters
@@ -56,38 +54,7 @@ namespace wns {
 		/**
 		 * @brief Configure stuff that belongs to WNS
 		 */
-		void initWNS();
-
-		/**
-		 * @brief Configure random number generator, event scheduler, ...
-		 *
-		 * SPEETCL is a library for dynamic, stochastic, event driven simulation and
-		 * is configured by this method. E.g. the correct type of random number
-		 * generator (Fibonacci, linear congruency) is selected.
-		 */
-		void initSPEETCL();
-
-		/**
-		 * @brief delete global objects created by speetcl
-		 */
-		void tearDownSPEETCL();
-
-
-		/**
-		 * @brief Write a fingerprint file to the output directory
-		 *
-		 */
-		void writeFingerprint();
-
-		/**
-		 * @brief Start the simulation thread and (if enabled) the networking thread
-		 */
-		void run();
-
-		/**
-		 * @brief Stop Probes
-		 */
-		void stopProbes();
+		void init();
 
 		/**
 		 * @brief Shutdown all Module, Nodes, ...
@@ -153,18 +120,12 @@ namespace wns {
 
 	private:
 
-		simTimeType maxSimulationTime;
-
 
 		static wns::logger::Logger log;
 
 		std::string iniFileName;
 
 		pyconfig::Parser pyConfig;
-
-		StatusReport sr;
-
-		SimControl* simctrl;
 
 		bool lazyBinding;
 

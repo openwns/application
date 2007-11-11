@@ -35,11 +35,6 @@ wns::catch_segv(int)
 {
     std::cout << "WNS caught Segfault\n";
 
-    if (WNS::wns != NULL)
-    {
-        WNS::wns->stopNetworking();
-    }
-
     if (WNS::outputBT == true)
     {
         wns::simulator::getMasterLogger()->outputBacktrace();
@@ -61,10 +56,6 @@ wns::catch_segv(int)
 void
 wns::catch_abrt(int)
 {
-    if (WNS::wns != NULL)
-    {
-        WNS::wns->stopNetworking();
-    }
     exit(1);
 }
 
@@ -73,11 +64,6 @@ void
 wns::catch_int(int)
 {
     std::cout << "WNS caught SIG INT\n";
-
-    if (WNS::wns != NULL)
-    {
-        WNS::wns->stopNetworking();
-    }
 
     if (WNS::outputBT == true)
     {
