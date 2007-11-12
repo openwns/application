@@ -36,7 +36,6 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/variables_map.hpp>
 
-#include <list>
 #include <vector>
 #include <string>
 
@@ -61,6 +60,10 @@ namespace wns {
     {
 
         friend class wns::DefaultCreation<WNS>;
+
+        // needs to be vector to work with boost
+        typedef std::vector<std::string> TestNameContainer;
+        typedef std::vector<std::string> PyConfigPatchContainer;
 
         /**
          * @brief Internal signal handler
@@ -206,7 +209,6 @@ namespace wns {
         std::string
         getPythonPath() const;
 
-
         /**
          * @brief The status code of openWNS
          *
@@ -239,7 +241,12 @@ namespace wns {
         /**
          * @brief If special tests have been defined they are stored here
          */
-        std::vector<std::string> testNames_;
+        TestNameContainer testNames_;
+
+        /**
+         * @brief Holds all PyConfig patches
+         */
+        PyConfigPatchContainer pyConfigPatches_;
 
         /**
          * @brief Defines the valid options for the command line
