@@ -1,176 +1,70 @@
-/******************************************************************************
- * WNS (Wireless Network Simulator)                                           *
- * __________________________________________________________________________ *
- *                                                                            *
- * Copyright (C) 2004-2006                                                    *
- * Chair of Communication Networks (ComNets)                                  *
- * Kopernikusstr. 16, D-52074 Aachen, Germany                                 *
- * phone: ++49-241-80-27910 (phone), fax: ++49-241-80-22242                   *
- * email: wns@comnets.rwth-aachen.de                                          *
- * www: http://wns.comnets.rwth-aachen.de                                     *
+/*******************************************************************************
+ * This file is part of openWNS (open Wireless Network Simulator)
+ * _____________________________________________________________________________
+ *
+ * Copyright (C) 2004-2007
+ * Chair of Communication Networks (ComNets)
+ * Kopernikusstr. 16, D-52074 Aachen, Germany
+ * phone: ++49-241-80-27910,
+ * fax: ++49-241-80-22242
+ * email: info@openwns.org
+ * www: http://www.openwns.org
+ * _____________________________________________________________________________
+ *
+ * openWNS is free software; you can redistribute it and/or modify it under the
+ * terms of the GNU Lesser General Public License version 2 as published by the
+ * Free Software Foundation;
+ *
+ * openWNS is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  ******************************************************************************/
 
 #include <OPENWNS/WNS.hpp>
-#include <OPENWNS/DetailedProgressListener.hpp>
-
-#include <WNS/logger/Master.hpp>
-#include <WNS/pyconfig/View.hpp>
-#include <WNS/TestFixture.hpp>
-
-#include <cppunit/extensions/TestFactoryRegistry.h>
-#include <cppunit/ui/text/TestRunner.h>
-#include <cppunit/TestResult.h>
-
-void
-unexpectedHandler()
-{
-	if(wns::WNS::wns)
-	{
-		wns::WNS::wns->outputBacktrace();
-	}
-	std::cerr << "WNS: unexpected exception:\n";
-	exit(1);
-}
+#include <WNS/TypeInfo.hpp>
+#include <WNS/simulator/ISimulator.hpp>
 
 /**
  * @brief Creates an instance of WNS, reads command line parameters and starts
  * the simulation.
- *
- * In order to execute a simulation the following steps are necessary:
- * @li Create an instance of WNS
- * @li Read command line parameters (switches)
- * @li Read list of modules to be started (from config file using switch '-i' or
- * from command line)
- * @li Initialize SPEETCL (WNS::initSPEETCL())
- * @li Load Modules (WNS::loadModules())
- * @li Initialize modules, startup modules, create networking thread and let the
- * simulation run (WNS::run())
- * @li Wait until maximum simulation is reached
- * @li Shutdown Modules smoothley
- * @li Stop event scheduler
- * @li Shutdown WNS
- * @note To see how modules (written by you) are loaded have a look at
- * WNS::loadModules()
- * @note To see how modules (written by you) are initialized and started have a
- * look at WNS::simFunction()
  */
 int main(int argc, char* argv[])
 {
-	wns::WNS::prog_name = std::string(argv[0]);
-	wns::WNS *wns = new wns::WNS();
-
-	wns->readCommandLineParameter(argc, argv);
-
-	// startup simulation environment and load Modules
-	wns->init();
-
-	// Unit tests are processed here
-	if(wns->testingEnabled())
-	{
-		std::vector<std::string> testNames = wns->getTestNames();
-
-		CppUnit::TestFactoryRegistry& defaultRegistry = CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Default());
-		CppUnit::TestSuite* defaultSuite = new CppUnit::TestSuite("DefaultTests");
-		defaultSuite->addTest(defaultRegistry.makeTest());
-		defaultSuite->addTest(CppUnit::TestFactoryRegistry::getRegistry().makeTest());
-
-		// run the specified tests
-		bool wasSuccessful = false;
-		CppUnit::TextTestRunner runner;
-		// Built tests (either all, or only specific ones given on the
-		// command line)
-		if(testNames.empty())
-		{
-			runner.addTest(defaultSuite);
-		}
-		else
-		{
-			CppUnit::TestSuite* masterSuite = new CppUnit::TestSuite("AllTests");
-
-			// register default tests
-			masterSuite->addTest(defaultSuite);
-
-			// register disabled tests
-			CppUnit::TestFactoryRegistry& disabledRegistry =
-				CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Disabled());
-			masterSuite->addTest(disabledRegistry.makeTest());
-
-			// register performance tests
-			CppUnit::TestFactoryRegistry& performanceRegistry =
-				CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Performance());
-			masterSuite->addTest(performanceRegistry.makeTest());
-
-			// register spikes
-			CppUnit::TestFactoryRegistry& spikeRegistry =
-				CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Spike());
-			masterSuite->addTest(spikeRegistry.makeTest());
-
-			for(std::vector<std::string>::iterator ii = testNames.begin();
-			    ii != testNames.end();
-			    ++ii)
-			{
-				runner.addTest(masterSuite->findTest(*ii));
-			}
-		}
-		if(wns->isVerbose()) {
-			DetailedProgressListener progress;
-			runner.eventManager().addListener(&progress);
-			wasSuccessful = runner.run("", false, true, false);
-		} else {
-			wasSuccessful = runner.run("", false);
-		}
-
-		wns->shutdown();
-		delete wns;
-
-		if(wasSuccessful)
-		{
-			return 0;
-		}
-		else
-		{
-			return 1;
-		}
-	}
-
-	// in order for the backtrace to work, we need to override the
-	// set_unexpected() handler previously set by SPEETCL
-	std::set_unexpected(unexpectedHandler);
-
-	// Finally run WNS
-	// Run in try-block to be able to catch all exceptions
 	try
 	{
-		wns->run();
-		delete wns;
+		wns::WNS& wns = wns::WNSSingleton::Instance();
+		wns.readCommandLine(argc, argv);
+		wns.init();
+		wns.run();
+		wns.shutdown();
+		return wns.status();
 	}
-	// we catch everything in order to finally print the backtrace (if defined)
-	catch (const wns::Exception& e)
+	// we catch everything in order to finally print the backtrace (if
+	// defined)
+	// since wns::Exception is derived from std::exception we don't need to
+	// make a difference here
+	catch (const std::exception& exception)
 	{
-		wns->outputBacktrace();
-		std::stringstream s;
-		s << "WNS: Caught wns::Exception:\n\n"
-		  << e.what();
-		std::cerr << s.str() << std::endl << std::endl;
-		exit(1);
-	}
-	catch (const std::exception& e)
-	{
-		wns->outputBacktrace();
-		std::stringstream s;
-		s << "WNS: Caught standard library exception:\n\n"
-		  << e.what();
-		std::cerr << s.str() << std::endl << std::endl;
+		wns::simulator::getMasterLogger()->outputBacktrace();
+		std::stringstream ss;
+		ss << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n" << exception.what();
+		std::cerr << ss.str() << "\n\n";
 		exit(1);
 	}
 	catch (...)
 	{
-		wns->outputBacktrace();
-		std::cerr << "WNS: An uncaught and unknown exception occurred.\n";
+		wns::simulator::getMasterLogger()->outputBacktrace();
+		std::cerr << "openWNS: An unknown exception occurred.\n";
 		exit(1);
 	}
 
-	return 0;
+	// if we reach this point, something went wrong
+	return 1;
 }
 
 /**

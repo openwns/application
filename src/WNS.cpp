@@ -1,24 +1,46 @@
-/******************************************************************************
- * WNS (Wireless Network Simulator)                                           *
- * __________________________________________________________________________ *
- *                                                                            *
- * Copyright (C) 2004-2006                                                    *
- * Chair of Communication Networks (ComNets)                                  *
- * Kopernikusstr. 16, D-52074 Aachen, Germany                                 *
- * phone: ++49-241-80-27910 (phone), fax: ++49-241-80-22242                   *
- * email: wns@comnets.rwth-aachen.de                                          *
- * www: http://wns.comnets.rwth-aachen.de                                     *
+/*******************************************************************************
+ * This file is part of openWNS (open Wireless Network Simulator)
+ * _____________________________________________________________________________
+ *
+ * Copyright (C) 2004-2007
+ * Chair of Communication Networks (ComNets)
+ * Kopernikusstr. 16, D-52074 Aachen, Germany
+ * phone: ++49-241-80-27910,
+ * fax: ++49-241-80-22242
+ * email: info@openwns.org
+ * www: http://www.openwns.org
+ * _____________________________________________________________________________
+ *
+ * openWNS is free software; you can redistribute it and/or modify it under the
+ * terms of the GNU Lesser General Public License version 2 as published by the
+ * Free Software Foundation;
+ *
+ * openWNS is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  ******************************************************************************/
 
 #include <OPENWNS/WNS.hpp>
 #include <OPENWNS/SignalHandlers.hpp>
+#include <OPENWNS/DetailedProgressListener.hpp>
 #include <OPENWNS/bversion.hpp>
 
 #include <WNS/logger/Master.hpp>
 #include <WNS/Assure.hpp>
-#include <WNS/events/scheduler/Interface.hpp>
 #include <WNS/TypeInfo.hpp>
+#include <WNS/TestFixture.hpp>
+#include <WNS/events/scheduler/Interface.hpp>
 #include <WNS/simulator/Simulator.hpp>
+#include <WNS/simulator/UnitTests.hpp>
+
+#include <cppunit/extensions/TestFactoryRegistry.h>
+#include <cppunit/ui/text/TestRunner.h>
+#include <cppunit/TestResult.h>
 
 #include <boost/program_options/value_semantic.hpp>
 
@@ -31,182 +53,321 @@
 using namespace wns;
 
 WNS::WNS() :
-        iniFileName("config.py"),
-        pyConfig(),
-	be_verbose(false),
-	testing(false),
-	testNames(),
-	options(),
-	arguments()
+        configFile_("config.py"),
+        configuration_(),
+        verbose_(false),
+        testing_(false),
+        testNames_(),
+        options_(),
+        arguments_(),
+        programName_("openwns"),
+        debuggerName_("gdb"),
+        attachDebugger_(false),
+	signalHandler_()
 {
-	options.add_options()
+        options_.add_options()
 
-		("help,?",
-		 "display this help and exit")
+                ("help,?",
+                 "display this help and exit")
 
-		("config-file,f",
-		 boost::program_options::value<std::string>(&this->iniFileName)->default_value("config.py"),
-		 "load config from configuration file")
+                ("config-file,f",
+                 boost::program_options::value<std::string>(&configFile_)->default_value("config.py"),
+                 "load config from configuration file")
 
-		("attach-debugger-on-segfault,s",
-		 boost::program_options::value<std::string>(&WNS::gdb_name),
-		 "fire up gdb on segfault, arg = command for debugger")
+                ("attach-debugger-on-segfault,s",
+                 boost::program_options::value<std::string>(&debuggerName_),
+                 "fire up gdb on segfault, arg = command for debugger")
 
-		("stop-in-debugger-on-assure,d",
-		 boost::program_options::bool_switch(&wns::Assure::useSIGTRAP),
-		 "stop in debugger if an 'assure' fired (no exception will be thrown)")
+                ("stop-in-debugger-on-assure,d",
+                 boost::program_options::bool_switch(&wns::Assure::useSIGTRAP),
+                 "stop in debugger if an 'assure' fired (no exception will be thrown)")
 
-		("unit-tests,t",
-		 boost::program_options::bool_switch(&this->testing),
-		 "run all specified and loaded unit tests")
+                ("unit-tests,t",
+                 boost::program_options::bool_switch(&testing_),
+                 "test mode: run unit tests specified with -T or default suite if no tests with -T given")
 
-		("named-unit-tests,T",
-		 boost::program_options::value< std::vector<std::string> >(&this->testNames),
-		 "run named unit test (defined multipple time for multiple tests), e.g. wns::pyconfig::tests::ParserTest")
+                ("named-unit-tests,T",
+                 boost::program_options::value< std::vector<std::string> >(&testNames_),
+                 "run named unit test (defined multipple time for multiple tests), e.g. wns::pyconfig::tests::ParserTest, use with -t")
 
-		("python-path,P",
-		 "print Python path and exit")
+                ("python-path,P",
+                 "print Python path and exit")
 
-		("verbose,v",
-		 boost::program_options::bool_switch(&this->be_verbose),
-		 "verbose mode (version information and verbose tests)")
+                ("verbose,v",
+                 boost::program_options::bool_switch(&verbose_),
+                 "verbose mode (version information and verbose tests)")
 
-		("patch-config,y",
-		 boost::program_options::value<std::string>(),
-		 "patch the configuration with the given Python expression")
-		;
-
-
-	if (NULL == wns)
-	{
-		wns = this;
-	}
-	else
-	{
-		std::cout << "Only one instance of WNS allowed!" << std::endl;
-		exit(1);
-	}
+                ("patch-config,y",
+                 boost::program_options::value<std::string>(),
+                 "patch the configuration with the given Python expression")
+                ;
 }
 
-WNS::~WNS()
+WNS::~WNS() throw()
 {
-	MESSAGE_SINGLE(NORMAL, log, "Deleting all nodes");
+        // reset signal handlers to default
+        signal(SIGSEGV, SIG_DFL);
+        signal(SIGABRT, SIG_DFL);
+        signal(SIGINT,  SIG_DFL);
+        signal(SIGUSR1, SIG_DFL);
 
-	MESSAGE_SINGLE(NORMAL, log, "Destroying all modules");
+        std::cout << "\nopenWNS terminated\n";
+}
 
-	std::cout << "\n"
-		  << "Deleting EventScheduler" << std::endl;
-	std::cout.flush();
- 	wns::simulator::getSingleton().shutdownInstance();
+void
+WNS::readCommandLine(int argc, char* argv[])
+{
+	programName_ = std::string(argv[0]);
 
-	if (this->pyConfig.get<bool>("WNS.postProcessing()") == false)
-	{
-		throw wns::Exception("WNS.postProcessing() failed!");
-	}
-	std::cout << "\n";
-	std::cout << "Good bye. - ~WNS() finished" << std::endl;
+        boost::program_options::store(
+                boost::program_options::parse_command_line(argc, argv, options_),
+		arguments_);
+        boost::program_options::notify(arguments_);
 }
 
 void WNS::init()
 {
-	wns::simulator::getSingleton().setInstance(new wns::simulator::Simulator(pyConfig));
-	signal(SIGSEGV, wns::catch_segv);
-	signal(SIGABRT, wns::catch_abrt);
-	signal(SIGINT,  wns::catch_int);
-	signal(SIGUSR1, wns::catch_usr1);
+        if (arguments_.count("help") > 0)
+        {
+                std::cout << options_ << "\n";
+                exit(1);
+        }
 
-	pyconfig::View wnsView = pyConfig.getView("WNS");
+        if (arguments_.count("python-path") > 0)
+        {
+                std::cout << getPythonPath() << std::endl;
+                exit(0);
+        }
 
-	pyconfig::View masterLoggerView = wnsView.getView("masterLogger");
-	outputBT = masterLoggerView.get<bool>("backtrace.enabled");
+        attachDebugger_ = arguments_.count("attach-debugger-on-segfault") > 0;
 
-	log = logger::Logger(wnsView.get<wns::pyconfig::View>("logger"));
+	// patch pyconfig (sys.path, command line patches ...)
+        typedef std::list<std::string> PyConfigPatches;
+        PyConfigPatches pyConfigPatches;
+
+        if (arguments_.count("patch-config") > 0)
+        {
+                pyConfigPatches.push_back(arguments_["patch-config"].as<std::string>());
+        }
+
+
+        configuration_.appendPath(getPythonPath());
+        configuration_.appendPath(".");
+        configuration_.load(configFile_);
+        for(PyConfigPatches::iterator it = pyConfigPatches.begin();
+            it != pyConfigPatches.end();
+            ++it)
+        {
+                configuration_.patch(*it);
+        }
+
+	// after pyconfig is patched, bring up Simulator singelton
+        if (testing_)
+        {
+                wns::simulator::getSingleton().setInstance(new wns::simulator::UnitTests(configuration_));
+        }
+        else
+        {
+                wns::simulator::getSingleton().setInstance(new wns::simulator::Simulator(configuration_));
+        }
+
+	// after this we can install the signal handlers as well as the
+	// unexpected handlers, because both need the SimulatorSingleton
+
+	// for the backtrace to work we need to set out own unexpected handler
+	// for exceptions
+	std::set_unexpected(wns::WNS::unexpectedHandler);
+
+	// register signal handlers
+
+	signalHandler_.addSignalHandler(
+		SIGABRT,
+		wns::signalhandler::Abort());
+
+	signalHandler_.addSignalHandler(
+		SIGSEGV,
+		wns::signalhandler::SegmentationViolation(
+			attachDebugger_,
+			debuggerName_,
+			programName_));
+
+	signalHandler_.addSignalHandler(
+		SIGINT,
+		wns::signalhandler::Interrupt());
+
+	signalHandler_.addSignalHandler(
+		SIGUSR1,
+		wns::signalhandler::UserDefined1());
 }
 
 void
-WNS::readCommandLineParameter(int argc, char* argv[])
+WNS::run()
 {
-	boost::program_options::store(
-	    boost::program_options::parse_command_line(
-	        argc,argv,this->options),
-	    this->arguments);
-	boost::program_options::notify(this->arguments);
+        // Unit tests are processed here
+        if(testing_)
+        {
+                CppUnit::TestFactoryRegistry& defaultRegistry = CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Default());
+                CppUnit::TestSuite* masterSuite = new CppUnit::TestSuite("AllTests");
+                CppUnit::TestSuite* defaultSuite = new CppUnit::TestSuite("DefaultTests");
+                defaultSuite->addTest(defaultRegistry.makeTest());
+                defaultSuite->addTest(CppUnit::TestFactoryRegistry::getRegistry().makeTest());
+                masterSuite->addTest(defaultSuite);
 
-	if (this->arguments.count("help"))
-	{
-		std::cout << this->options << "\n";
-		exit(1);
-	}
+                // run the specified tests
+                bool wasSuccessful = false;
+                CppUnit::TextTestRunner runner;
+                // Built tests (either all, or only specific ones given on the
+                // command line)
+                if(!testNames_.empty())
+                {
+                        // register disabled tests
+                        CppUnit::TestFactoryRegistry& disabledRegistry =
+                                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Disabled());
+                        masterSuite->addTest(disabledRegistry.makeTest());
 
-	if (this->arguments.count("python-path"))
-	{
-		std::cout << getPythonPath() << std::endl;
-		exit(0);
-	}
+                        // register performance tests
+                        CppUnit::TestFactoryRegistry& performanceRegistry =
+                                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Performance());
+                        masterSuite->addTest(performanceRegistry.makeTest());
 
-	WNS::attachGDB = this->arguments.count("attach-debugger-on-segfault");
+                        // register spikes
+                        CppUnit::TestFactoryRegistry& spikeRegistry =
+                                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Spike());
+                        masterSuite->addTest(spikeRegistry.makeTest());
 
-	if (this->arguments.count("named-unit-tests"))
-	{
-		this->testing = true;
-	}
+                        for(std::vector<std::string>::iterator ii = testNames_.begin();
+                            ii != testNames_.end();
+                            ++ii)
+                        {
+                                runner.addTest(masterSuite->findTest(*ii));
+                        }
+                }
+                else
+                {
+                        runner.addTest(masterSuite);
+                }
 
-	typedef std::list<std::string> PyConfigPatches;
-	PyConfigPatches pyConfigPatches;
+                if(verbose_)
+                {
+                        DetailedProgressListener progress;
+                        runner.eventManager().addListener(&progress);
+                        wasSuccessful = runner.run("", false, true, false);
+                }
+                else
+                {
+                        wasSuccessful = runner.run("", false);
+                }
+        }
 
-	if (this->arguments.count("patch-config"))
-	{
-		pyConfigPatches.push_back(this->arguments["patch-config"].as<std::string>());
-	}
-
-
-	pyConfig.appendPath(getPythonPath());
-	pyConfig.appendPath(".");
-	pyConfig.load(iniFileName);
-	for(PyConfigPatches::iterator it = pyConfigPatches.begin();
-	    it != pyConfigPatches.end();
-	    ++it)
-	{
-		pyConfig.patch(*it);
-	}
 }
 
 void WNS::shutdown()
 {
+        if (!configuration_.get<bool>("WNS.postProcessing()"))
+        {
+                throw wns::Exception("WNS.postProcessing() failed!");
+        }
+
+	// deregister all signal handler before shutting down master logger
+	signalHandler_.removeAllSignalHandlers();
+
+	// restore default state
+	std::set_unexpected(std::terminate);
+
+        // This is the very last thing to shut down! Keep the MasterLogger up as
+        // long as possible
+        wns::simulator::getSingleton().shutdownInstance();
 }
 
 
-void WNS::outputBacktrace()
+std::string
+WNS::getPythonPath() const
 {
-	if (WNS::outputBT)
+        std::stringstream ss;
+        // shouldn't this be done via wnsrc.py?
+        ss << INSTALLPREFIX << "/" << BUILDFLAVOUR << "/lib" << "/PyConfig";
+        return ss.str();
+}
+
+int
+WNS::status() const
+{
+        return status_;
+}
+
+void
+WNS::unexpectedHandler()
+{
+	std::cout << "openWNS: caught an unexpected excpetion!\n";
+	wns::simulator::getMasterLogger()->outputBacktrace();
+	exit(1);
+}
+
+
+// SignalHandler implementation ...
+
+WNS::SignalHandler::SignalHandler() :
+	map_()
+{
+}
+
+WNS::SignalHandler::~SignalHandler()
+{
+	removeAllSignalHandlers();
+}
+
+void
+WNS::SignalHandler::removeSignalHandler(int signum)
+{
+	if (!map_.knows(signum))
 	{
-		wns::simulator::getMasterLogger()->outputBacktrace();
+		// should never happen, otherwise the implementation is broken
+		std::cout << "openWNS: Tried to removed signal handler for signal " << signum <<"!!!\n";
+		std::cout << "         But no handler was registered.";
+		return;
+	}
+	map_.erase(signum);
+	// restore default signal handler
+	signal(signum, SIG_DFL);
+}
+
+void
+WNS::SignalHandler::removeAllSignalHandlers()
+{
+	while(!map_.empty())
+	{
+		Map::const_iterator itr = map_.begin();
+		// restore old signal handler
+		signal(itr->first, SIG_DFL);
+		// remove signal handler from map
+		map_.erase(itr->first);
 	}
 }
 
-std::string WNS::getPythonPath()
+void
+WNS::SignalHandler::catchSignal(int signum)
 {
-	std::stringstream ss;
-	// shouldn't this be done via wnsrc.py?
-	ss << INSTALLPREFIX << "/" << BUILDFLAVOUR << "/lib" << "/PyConfig";
-	return ss.str();
+	std::cout << "openWNS: caught signal " << signum << "\n";
+	wns::WNS& wns = wns::WNSSingleton::Instance();
+	if (!wns.signalHandler_.map_.knows(signum))
+	{
+		// should never happen, otherwise the implementation is broken
+		std::cout << "openWNS: no signal handler defined!!!\n";
+		return;
+	}
+
+	Handler* handler = wns.signalHandler_.map_.find(signum);
+
+	if (handler->num_slots() == 0)
+	{
+		std::cout << "openWNS: no signal handler to call!\n";
+		return;
+	}
+	if (handler->num_slots() > 1)
+	{
+		std::cout << "openWNS: more than one signal handler to call! Not calling any signal handler!\n";
+		return;
+	}
+	// call the signal handler
+	(*handler)();
 }
-
-std::string WNS::prog_name = "openwns";
-std::string WNS::gdb_name = "gdb";
-bool WNS::attachGDB = false;
-WNS* WNS::wns = 0;
-wns::logger::Logger WNS::log = logger::Logger("WNS", "WNS", NULL);
-bool WNS::outputBT = false;
-
-/*
-  Local Variables:
-  mode: c++
-  fill-column: 80
-  c-basic-offset: 8
-  c-tab-always-indent: t
-  indent-tabs-mode: t
-  tab-width: 8
-  End:
-
-*/

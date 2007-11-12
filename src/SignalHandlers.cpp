@@ -11,42 +11,40 @@
  ******************************************************************************/
 
 #include <OPENWNS/SignalHandlers.hpp>
-#include <OPENWNS/WNS.hpp>
-
-#include <WNS/module/Base.hpp>
+#include <WNS/simulator/ISimulator.hpp>
+#include <WNS/logger/Master.hpp>
 
 #include <iostream>
 
-using namespace wns;
+using namespace wns::signalhandler;
 
-
-bool
-wns::abortCalled()
+SegmentationViolation::SegmentationViolation(
+    bool attachDebugger,
+    const std::string& debuggerName,
+    const std::string& programName) :
+    attachDebugger_(attachDebugger),
+    debuggerName_(debuggerName),
+    programName_(programName)
 {
-	static bool value = false;
-	bool alreadyCalled = value;
-	value = true;
-	return alreadyCalled;
 }
 
-
 void
-wns::catch_segv(int)
+SegmentationViolation::operator()()
 {
-    std::cout << "WNS caught Segfault\n";
+    std::cout << "openWNS: caught signal 'SIGSEGV' (segmentation violation)\n";
 
-    if (WNS::outputBT == true)
-    {
-        wns::simulator::getMasterLogger()->outputBacktrace();
-    }
+    // output backtrace if available
+    wns::simulator::getMasterLogger()->outputBacktrace();
 
-    if (WNS::attachGDB == true)
+    if (attachDebugger_)
     {
-        std::cout << "Attaching " << WNS::gdb_name << " to process ..." << std::endl;
-        std::stringstream str;
-        str << WNS::gdb_name << " "<< WNS::prog_name << " "
-            << getpid() << std::ends;
-        system(str.str().c_str());
+        int pid = getpid();
+
+        std::cout << "Attaching " << debuggerName_ << " to process ID " << pid << "\n";
+
+        std::stringstream debuggerCall;
+        debuggerCall << debuggerName_ << " " << programName_ << " " << pid << std::ends;
+        system(debuggerCall.str().c_str());
     }
 
     exit(1);
@@ -54,48 +52,41 @@ wns::catch_segv(int)
 
 
 void
-wns::catch_abrt(int)
+Abort::operator()()
 {
+    std::cout << "openWNS: caught signal 'SIGABRT' (abort)\n";
+    // that's the end, my friend ...
+    return;
+}
+
+
+void
+Interrupt::operator()()
+{
+    std::cout << "openWNS: caught signal 'SIGINT' (interrupt)\n";
+    // output backtrace if available
+    wns::simulator::getMasterLogger()->outputBacktrace();
     exit(1);
 }
 
 
 void
-wns::catch_int(int)
+UserDefined1::operator()()
 {
-    std::cout << "WNS caught SIG INT\n";
+    std::cout << "openWNS: caught signal 'SIGUSR1' (user defined signal 1),\n";
 
-    if (WNS::outputBT == true)
-    {
-        wns::simulator::getMasterLogger()->outputBacktrace();
-    }
-    exit(1);
-}
+    std::cout << "\n==================================================================\n"
+              << "The current simTime is: " << wns::simulator::getEventScheduler()->getTime()
+              << " [s].\n"
+              << "Now writing logger Backtrace (if enabled)\n."
+              << "==================================================================\n";
 
+    wns::simulator::getMasterLogger()->outputBacktrace();
 
-void
-wns::catch_usr1(int signum)
-{
-    assert(signum == SIGUSR1);
+    std::cout << "\n==================================================================\n"
+              << " End of Backtrace, continuing execution.\n"
+              << "==================================================================\n";
 
-    if (WNS::outputBT == true)
-    {
-        std::cout << std::endl
-                  << "==================================================================" << std::endl
-                  << "WNS caught SIG USR1 (" << signum << ")," << std::endl
-                  << "The current simTime is: " << wns::simulator::getEventScheduler()->getTime()
-                  << " [s]."<< std::endl
-                  << "Now writing logger Backtrace." << std::endl
-                  << "==================================================================" << std::endl;
-
-        wns::simulator::getMasterLogger()->outputBacktrace();
-
-        std::cout << std::endl
-                  << "==================================================================" << std::endl
-                  << " End of Backtrace, continuing execution." << std::endl
-                  << "==================================================================" << std::endl;
-
-    }
-
+    // simply continue
     return;
 }

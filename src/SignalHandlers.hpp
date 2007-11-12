@@ -13,55 +13,62 @@
 #ifndef WNS_SIGNALHANDLERS_HPP
 #define WNS_SIGNALHANDLERS_HPP
 
-namespace wns {
-    /**
-     * @brief function that returns false only the first time it is being
-     * called.
-     */
-    bool
-    abortCalled();
+#include <string>
 
+namespace wns { namespace signalhandler {
     /**
      * @brief This signal handler (if enabled) will catch segmentation faults
      * and automatically attach the GNU Debugger 'gdb'. To enable this feature
      * start WNS with the switch "-s".
      */
-    void
-    catch_segv(int);
+    class SegmentationViolation
+    {
+    public:
+        SegmentationViolation(
+            bool attachDebugger,
+            const std::string& debuggerName,
+            const std::string& programName);
+
+        void
+        operator()();
+
+    private:
+        bool attachDebugger_;
+        std::string debuggerName_;
+        std::string programName_;
+    };
 
     /**
      * @brief catch abort signals
      */
-    void
-    catch_abrt(int);
+    class Abort
+    {
+    public:
+        void
+        operator()();
+    };
 
     /**
      * @brief catch interrupt signal
      */
-    void
-    catch_int(int);
+    class Interrupt
+    {
+    public:
+        void
+        operator()();
+    };
 
     /**
-     *  @brief catch interrupt signal
+     *  @brief catch user defined signal 1
      */
-    void
-    catch_usr1(int signum);
+    class UserDefined1
+    {
+    public:
+        void
+        operator()();
+    };
 
-
-    /**
-     * @brief catch signal USR2, sent by SGE shortly before SIGKILL when
-     * exceeding resource limits. It leads to a premature end of the (otherwise
-     * smoothly running) simulation.
-     */
-    void
-    catch_usr2(int signum);
-
-    /**
-     * @brief catch signal SIGXCPU
-     */
-    void
-    catch_xcpu(int signum);
-
+} // namespace signalhandler
 } // namespace wns
 
 #endif // NOT defined WNS_SIGNALHANDLERS_HPP
