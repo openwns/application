@@ -32,7 +32,7 @@
 /**
  * @brief Creates an instance of WNS, reads command line parameters and starts
  * the simulation.
- * @author Marc Schinnenburg <marc.schinnenburg@openwns.org>
+ * @author Marc Schinnenburg <marc@schinnenburg.com>
  */
 int main(int argc, char* argv[])
 {
