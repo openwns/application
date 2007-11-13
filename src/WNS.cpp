@@ -27,9 +27,9 @@
 
 #include <OPENWNS/WNS.hpp>
 #include <OPENWNS/SignalHandlers.hpp>
-#include <OPENWNS/DetailedProgressListener.hpp>
 #include <OPENWNS/bversion.hpp>
 
+#include <WNS/testing/DetailedListener.hpp>
 #include <WNS/logger/Master.hpp>
 #include <WNS/Assure.hpp>
 #include <WNS/TypeInfo.hpp>
@@ -238,7 +238,7 @@ WNS::run()
         std::auto_ptr<CppUnit::TestListener> listener;
         if(verbose_)
         {
-            listener.reset(new DetailedProgressListener());
+            listener.reset(new wns::testing::DetailedListener());
         }
         else
         {
