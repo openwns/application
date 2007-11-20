@@ -43,7 +43,7 @@ namespace wns {
 
     /**
      * @brief Run-time environment of WNS
-     * @author Marc Schinnenburg <marc@schinnenburg.net>
+     * @author Marc Schinnenburg <marc@schinnenburg.com>
      *
      * The following mehtods are called in this order:
      *  - WNS()

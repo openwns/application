@@ -14,8 +14,14 @@
 #define WNS_SIGNALHANDLERS_HPP
 
 #include <string>
+#include <signal.h>
 
 namespace wns { namespace signalhandler {
+
+    /* Obtain a backtrace and print it to stdout. */
+    void
+    printBacktrace();
+
     /**
      * @brief This signal handler (if enabled) will catch segmentation faults
      * and automatically attach the GNU Debugger 'gdb'. To enable this feature

@@ -41,17 +41,24 @@ int main(int argc, char* argv[])
         wns::WNS& wns = wns::WNSSingleton::Instance();
         wns.readCommandLine(argc, argv);
         wns.init();
-        wns.run();
+        try
+        {
+            wns.run();
+        }
+        catch (...)
+        {
+            // if enabled, print the backtrace
+            wns::simulator::getMasterLogger()->outputBacktrace();
+            // throw on to catch outside
+            throw;
+        }
         wns.shutdown();
         return wns.status();
     }
-    // we catch everything in order to finally print the backtrace (if
-    // defined)
     // since wns::Exception is derived from std::exception we don't need to
     // make a difference here
     catch (const std::exception& exception)
     {
-        wns::simulator::getMasterLogger()->outputBacktrace();
         std::stringstream ss;
         ss << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n" << exception.what();
         std::cerr << ss.str() << "\n\n";
@@ -59,7 +66,6 @@ int main(int argc, char* argv[])
     }
     catch (...)
     {
-        wns::simulator::getMasterLogger()->outputBacktrace();
         std::cerr << "openWNS: An unknown exception occurred.\n";
         exit(1);
     }
