@@ -158,7 +158,10 @@ void WNS::init()
 
     if(interactiveConfig_)
     {
-        configuration_.patch("import pdb; pdb.set_trace()");
+        configuration_.patch("import pdb\n"
+                             "import rlcompleter\n"
+                             "pdb.Pdb.complete = rlcompleter.Completer(locals()).complete\n"
+                             "pdb.set_trace()\n");
     }
 
     // after pyconfig is patched, bring up Simulator singelton
