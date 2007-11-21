@@ -55,13 +55,21 @@ int main(int argc, char* argv[])
         wns.shutdown();
         return wns.status();
     }
-    // since wns::Exception is derived from std::exception we don't need to
-    // make a difference here
+    catch (const wns::Exception& exception)
+    {
+        std::stringstream message;
+        message << exception.getBacktrace()
+                << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n"
+                << exception.what();
+        std::cerr << message.str() << "\n\n";
+        exit(1);
+    }
     catch (const std::exception& exception)
     {
-        std::stringstream ss;
-        ss << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n" << exception.what();
-        std::cerr << ss.str() << "\n\n";
+        std::stringstream message;
+        message << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n"
+                << exception.what();
+        std::cerr << message.str() << "\n\n";
         exit(1);
     }
     catch (...)

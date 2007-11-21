@@ -18,10 +18,6 @@
 
 namespace wns { namespace signalhandler {
 
-    /* Obtain a backtrace and print it to stdout. */
-    void
-    printBacktrace();
-
     /**
      * @brief This signal handler (if enabled) will catch segmentation faults
      * and automatically attach the GNU Debugger 'gdb'. To enable this feature
@@ -58,16 +54,6 @@ namespace wns { namespace signalhandler {
      * @brief catch interrupt signal
      */
     class Interrupt
-    {
-    public:
-        void
-        operator()();
-    };
-
-    /**
-     *  @brief catch user defined signal 1
-     */
-    class UserDefined1
     {
     public:
         void

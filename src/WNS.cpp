@@ -65,7 +65,8 @@ WNS::WNS() :
     programName_("openwns"),
     debuggerName_("gdb"),
     attachDebugger_(false),
-    signalHandler_()
+    signalHandler_(),
+    interactiveConfig_()
 {
     options_.add_options()
 
@@ -83,6 +84,10 @@ WNS::WNS() :
         ("stop-in-debugger-on-assure,d",
          boost::program_options::bool_switch(&wns::Assure::useSIGTRAP),
          "stop in debugger if an 'assure' fired (no exception will be thrown)")
+
+        ("interactive-configuration,i",
+         boost::program_options::bool_switch(&interactiveConfig_),
+         "after reading config start an interactive shell which allows modification of the configuration, use 'continue' to exit shell and run openWNS")
 
         ("unit-tests,t",
          boost::program_options::bool_switch(&testing_),
@@ -151,6 +156,11 @@ void WNS::init()
         configuration_.patch(*it);
     }
 
+    if(interactiveConfig_)
+    {
+        configuration_.patch("import pdb; pdb.set_trace()");
+    }
+
     // after pyconfig is patched, bring up Simulator singelton
     if (testing_)
     {
@@ -184,10 +194,6 @@ void WNS::init()
     signalHandler_.addSignalHandler(
         SIGINT,
         wns::signalhandler::Interrupt());
-
-    signalHandler_.addSignalHandler(
-        SIGUSR1,
-        wns::signalhandler::UserDefined1());
 }
 
 void
@@ -203,38 +209,23 @@ WNS::run()
         defaultSuite->addTest(CppUnit::TestFactoryRegistry::getRegistry().makeTest());
         masterSuite->addTest(defaultSuite);
 
+        // register disabled tests
+        CppUnit::TestFactoryRegistry& disabledRegistry =
+            CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Disabled());
+        masterSuite->addTest(disabledRegistry.makeTest());
+
+        // register performance tests
+        CppUnit::TestFactoryRegistry& performanceRegistry =
+            CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Performance());
+        masterSuite->addTest(performanceRegistry.makeTest());
+
+        // register spikes
+        CppUnit::TestFactoryRegistry& spikeRegistry =
+            CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Spike());
+        masterSuite->addTest(spikeRegistry.makeTest());
+
+        // setup testrunner
         CppUnit::TextTestRunner runner;
-        // Built tests (either all, or only specific ones given on the
-        // command line)
-        if(!testNames_.empty())
-        {
-            // register disabled tests
-            CppUnit::TestFactoryRegistry& disabledRegistry =
-                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Disabled());
-            masterSuite->addTest(disabledRegistry.makeTest());
-
-            // register performance tests
-            CppUnit::TestFactoryRegistry& performanceRegistry =
-                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Performance());
-            masterSuite->addTest(performanceRegistry.makeTest());
-
-            // register spikes
-            CppUnit::TestFactoryRegistry& spikeRegistry =
-                CppUnit::TestFactoryRegistry::getRegistry(wns::testsuite::Spike());
-            masterSuite->addTest(spikeRegistry.makeTest());
-
-            for(TestNameContainer::const_iterator ii = testNames_.begin();
-                ii != testNames_.end();
-                ++ii)
-            {
-                runner.addTest(masterSuite->findTest(*ii));
-            }
-        }
-        else
-        {
-            runner.addTest(masterSuite);
-        }
-
         std::auto_ptr<CppUnit::TestListener> listener;
         if(verbose_)
         {
@@ -245,7 +236,25 @@ WNS::run()
             listener.reset(new CppUnit::TextTestProgressListener());
         }
         runner.eventManager().addListener(listener.get());
-        status_ = runner.run("", false, true, false) ? 0 : 1;
+        runner.addTest(masterSuite);
+
+        // Built tests (either all, or only specific ones given on the
+        // command line)
+        if(!testNames_.empty())
+        {
+
+            for(TestNameContainer::const_iterator ii = testNames_.begin();
+                ii != testNames_.end();
+                ++ii)
+            {
+                status_ = runner.run(*ii, false, true, false) ? status_ : 1;
+            }
+        }
+        else
+        {
+            status_ = runner.run("DefaultTests", false, true, false) ? 0 : 1;
+        }
+
     }
     // normal simulation
     else
@@ -291,7 +300,7 @@ WNS::status() const
 void
 WNS::unexpectedHandler()
 {
-    std::cout << "openWNS: caught an unexpected excpetion!\n";
+    std::cerr << "openWNS: caught an unexpected excpetion!\n";
     wns::simulator::getMasterLogger()->outputBacktrace();
     exit(1);
 }
@@ -312,40 +321,59 @@ WNS::SignalHandler::~SignalHandler()
 void
 WNS::SignalHandler::removeSignalHandler(int signum)
 {
+    // block all signals until we have removed the handler
+    sigset_t allSignals;
+    sigfillset(&allSignals);
+    sigprocmask(SIG_BLOCK, &allSignals, NULL);
     if (!map_.knows(signum))
     {
         // should never happen, otherwise the implementation is broken
-        std::cout << "openWNS: Tried to removed signal handler for signal " << signum <<"!!!\n";
-        std::cout << "         But no handler was registered.";
-        return;
+        std::cerr << "openWNS: Tried to removed signal handler for signal " << signum <<"!!!\n";
+        std::cerr << "         But no handler was registered.";
     }
-    map_.erase(signum);
-    // restore default signal handler
-    signal(signum, SIG_DFL);
+    else
+    {
+        map_.erase(signum);
+        // restore default signal handler
+        struct sigaction action;
+        sigfillset (&action.sa_mask);
+        action.sa_flags = 0;
+        action.sa_handler = SIG_DFL;
+        sigaction(signum, &action, NULL);
+    }
+    sigprocmask(SIG_UNBLOCK, &allSignals, NULL);
 }
 
 void
 WNS::SignalHandler::removeAllSignalHandlers()
 {
+    // block all signals until we have removed all handlers
+    sigset_t allSignals;
+    sigfillset(&allSignals);
+    sigprocmask(SIG_BLOCK, &allSignals, NULL);
     while(!map_.empty())
     {
         Map::const_iterator itr = map_.begin();
-        // restore old signal handler
-        signal(itr->first, SIG_DFL);
-        // remove signal handler from map
+        // restore default signal handler
+        struct sigaction action;
+        sigfillset (&action.sa_mask);
+        action.sa_flags = 0;
+        action.sa_handler = SIG_DFL;
+        sigaction(itr->first, &action, NULL);
         map_.erase(itr->first);
     }
+    sigprocmask(SIG_UNBLOCK, &allSignals, NULL);
 }
 
 void
 WNS::SignalHandler::catchSignal(int signum)
 {
-    std::cout << "openWNS: caught signal " << signum << "\n";
+    std::cerr << "\nopenWNS: caught signal " << signum << "\n";
     wns::WNS& wns = wns::WNSSingleton::Instance();
     if (!wns.signalHandler_.map_.knows(signum))
     {
         // should never happen, otherwise the implementation is broken
-        std::cout << "openWNS: no signal handler defined!!!\n";
+        std::cerr << "openWNS: no signal handler defined!!!\n";
         return;
     }
 
@@ -353,12 +381,12 @@ WNS::SignalHandler::catchSignal(int signum)
 
     if (handler->num_slots() == 0)
     {
-        std::cout << "openWNS: no signal handler to call!\n";
+        std::cerr << "openWNS: no signal handler to call!\n";
         return;
     }
     if (handler->num_slots() > 1)
     {
-        std::cout << "openWNS: more than one signal handler to call! Not calling any signal handler!\n";
+        std::cerr << "openWNS: more than one signal handler to call! Not calling any signal handler!\n";
         return;
     }
 

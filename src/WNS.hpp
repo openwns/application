@@ -96,13 +96,24 @@ namespace wns {
             void
             addSignalHandler(int signum, HANDLER handler)
             {
+                // block all signals until have added the handler
+                sigset_t allSignals;
+                sigfillset(&allSignals);
+                sigprocmask(SIG_BLOCK, &allSignals, NULL);
+
                 if(!map_.knows(signum))
                 {
                     map_.insert(signum, new Handler());
                 }
                 map_.find(signum)->disconnect_all_slots();
                 map_.find(signum)->connect(handler);
-                signal(signum, SignalHandler::catchSignal);
+                struct sigaction action;
+                sigfillset (&action.sa_mask);
+                action.sa_flags = 0;
+                action.sa_handler = SignalHandler::catchSignal;
+                sigaction(signum, &action, NULL);
+                // Unblock all signals again
+                sigprocmask(SIG_UNBLOCK, &allSignals, NULL);
             }
 
             /**
@@ -277,6 +288,11 @@ namespace wns {
          * @brief Manages the signal handlers
          */
         SignalHandler signalHandler_;
+
+        /**
+         * @brief Interactive config
+         */
+        bool interactiveConfig_;
     };
 
     /**
