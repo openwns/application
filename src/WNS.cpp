@@ -66,7 +66,7 @@ WNS::WNS() :
     debuggerName_("gdb"),
     attachDebugger_(false),
     signalHandler_(),
-    interactiveConfig_()
+    interactiveConfig_(false)
 {
     options_.add_options()
 
