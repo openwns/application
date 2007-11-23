@@ -25,60 +25,21 @@
  *
  ******************************************************************************/
 
-#include <OPENWNS/WNS.hpp>
-#include <WNS/TypeInfo.hpp>
-#include <WNS/simulator/ISimulator.hpp>
+#include <WNS/simulator/Main.hpp>
 
 /**
- * @brief Creates an instance of WNS, reads command line parameters and starts
- * the simulation.
+ * @brief Simple main
  * @author Marc Schinnenburg <marc@schinnenburg.com>
+ *
+ * This main creates an instance of wns::simulator::Main which in turn creates
+ * an instance of wns::simulator::Application.
  */
 int main(int argc, char* argv[])
 {
-    try
-    {
-        wns::WNS& wns = wns::WNSSingleton::Instance();
-        wns.readCommandLine(argc, argv);
-        wns.init();
-        try
-        {
-            wns.run();
-        }
-        catch (...)
-        {
-            // if enabled, print the backtrace
-            wns::simulator::getMasterLogger()->outputBacktrace();
-            // throw on to catch outside
-            throw;
-        }
-        wns.shutdown();
-        return wns.status();
-    }
-    catch (const wns::Exception& exception)
-    {
-        std::stringstream message;
-        message << exception.getBacktrace()
-                << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n"
-                << exception.what();
-        std::cerr << message.str() << "\n\n";
-        exit(1);
-    }
-    catch (const std::exception& exception)
-    {
-        std::stringstream message;
-        message << "openWNS: Caught " << wns::TypeInfo::create(exception) << ":\n\n"
-                << exception.what();
-        std::cerr << message.str() << "\n\n";
-        exit(1);
-    }
-    catch (...)
-    {
-        std::cerr << "openWNS: An unknown exception occurred.\n";
-        exit(1);
-    }
+    // create an instance of the wns
+    wns::simulator::Main main(argc, argv);
 
-    // if we reach this point, something went wrong
-    return 1;
+    // run the main programm
+    return main.run();
 }
 

@@ -1,9 +1,5 @@
 srcFiles = dict()
 
-srcFiles['main']  = ['src/WNS.cpp',
-                     'src/Main.cpp',
-                     'src/SignalHandlers.cpp',
-                     ]
-
+srcFiles['main']  = ['src/Main.cpp']
 
 Return('srcFiles')
