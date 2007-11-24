@@ -26,6 +26,7 @@
  ******************************************************************************/
 
 #include <WNS/simulator/Main.hpp>
+#include <WNS/simulator/Application.hpp>
 
 /**
  * @brief Simple main
@@ -36,10 +37,23 @@
  */
 int main(int argc, char* argv[])
 {
-    // create an instance of the wns
-    wns::simulator::Main main(argc, argv);
+    // create an instance of the wns::simulator::Application
+    wns::simulator::Main<wns::simulator::Application> main;
 
-    // run the main programm
-    return main.run();
+    // parse the command line
+    main.readCommandLine(argc, argv);
+
+    // after this the EventScheduler and MasterLogger are available and can be used
+    main.init();
+
+    // this starts the main loop (of the EventScheduler) until no more events
+    // are available or a stop event is queued
+    main.run();
+
+    // shutdown the simulator (EventScheduler, MasterLogger, ...)
+    main.shutdown();
+
+    // Finally return the status
+    return main.status();
 }
 
