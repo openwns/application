@@ -3,3 +3,4 @@ config/private.py
 build
 include
 config/bversion.hpp
+.objs

@@ -1,6 +1,7 @@
 import os
 import CNBuildSupport
 from CNBuildSupport import CNBSEnvironment
+import wnsbase.RCS as RCS
 
 commonEnv = CNBSEnvironment(PROJNAME       = 'openWNS',
                             AUTODEPS       = ['wns'],
@@ -16,8 +17,9 @@ commonEnv = CNBSEnvironment(PROJNAME       = 'openWNS',
                                               'boost_program_options',
                                               'boost_signals',
                                               'gsl',
-                                              'gslcblas'
+                                              'gslcblas',
                                               ],
+                            REVISIONCONTROL = RCS.Bazaar('..', 'openWNS-core', 'main', '1.0'),
                             )
 
 Return('commonEnv')
