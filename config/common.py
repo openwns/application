@@ -8,7 +8,7 @@ commonEnv = CNBuildSupport.CNBSEnvironment(PROJNAME       = 'openWNS',
                                            BINARY         = True,
                                            FLATINCLUDES   = False,
                                            LIBS           = ['wns-1.0'],
-                                           REVISIONCONTROL = wnsbase.RCS.Bazaar('..', 'openWNS-core', 'main', '1.0'),
+                                           REVISIONCONTROL = wnsbase.RCS.Bazaar('..', 'application', 'main', '1.0'),
                                            )
 
 Return('commonEnv')

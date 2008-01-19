@@ -4,3 +4,4 @@ build
 include
 config/bversion.hpp
 .objs
+doxydoc
