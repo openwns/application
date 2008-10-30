@@ -1,5 +1,3 @@
-srcFiles = dict()
-
-srcFiles['main']  = ['src/Main.cpp']
+srcFiles  = ['src/Main.cpp']
 
 Return('srcFiles')
