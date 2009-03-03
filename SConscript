@@ -14,6 +14,8 @@ LIBS = [ 'wns',
 if coreEnv['static']:
     LIBS += coreEnv['libraries']
     coreEnv.Append(LINKFLAGS = '-Wl,--whole-archive')
+coreEnv.Append(LINKFLAGS = '-Wl,-disable-new-dtags')
+
 LIBS = list(set(LIBS))
 prog = coreEnv.Program('openwns', files, LIBS = LIBS)
 coreEnv.Append(RPATH = os.path.join(env.installDir, 'lib'))
