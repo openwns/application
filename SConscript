@@ -4,13 +4,7 @@ Import('env')
 files = SConscript('config/libfiles.py')
 
 coreEnv = env.Clone()
-
-LIBS = [ 'wns', 
-         'cppunit',
-         'python2.5',
-         'boost_program_options',
-         'boost_signals', 
-         'boost_date_time']
+LIBS = ['wns'] + coreEnv['externalLIBS']
 
 if coreEnv['static']:
     coreEnv.Append(LINKFLAGS = '-Wl,--whole-archive')
