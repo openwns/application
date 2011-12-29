@@ -15,7 +15,6 @@ if coreEnv['static']:
 if not platform.system().startswith("CYGWIN"):
     coreEnv.Append(LINKFLAGS = '-Wl,-disable-new-dtags')
 
-LIBS = list(set(LIBS))
 prog = coreEnv.Program('openwns', files, LIBS = LIBS)
 if coreEnv['static']:
     for lib in coreEnv['libraries']:
