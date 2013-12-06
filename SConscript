@@ -1,5 +1,6 @@
 import os
 import platform
+import sys
 Import('env')
 files = SConscript('config/libfiles.py')
 
@@ -12,7 +13,10 @@ if coreEnv['static']:
         coreEnv.Append(LINKFLAGS = '-l'+lib)
     coreEnv.Append(LINKFLAGS = '-Wl,--no-whole-archive')
 
-if not platform.system().startswith("CYGWIN"):
+if sys.platform == 'darwin':
+    coreEnv.Append(LINKFLAGS = '-Wl,-flat_namespace -Wl,-force_flat_namespace ')
+    coreEnv.Append(LINKFLAGS = '-Wl,-rpath '+os.path.join(coreEnv.installDir,'lib'))
+elif not platform.system().startswith("CYGWIN"):
     coreEnv.Append(LINKFLAGS = '-Wl,-disable-new-dtags')
 
 prog = coreEnv.Program('openwns', files, LIBS = LIBS)
